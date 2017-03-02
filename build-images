@@ -1,0 +1,64 @@
+#!/bin/bash
+
+set -e
+
+source config
+
+function die()
+{
+    echo "FATAL: $*"
+    exit 1
+}
+
+function build()
+{
+    local branch="$1"
+    local tag="$2"
+
+    echo "Building new $tag image"
+    $SIMULATE_BUILD git checkout --force "$branch"
+    $SIMULATE_BUILD patch -p1 < "$PATCH_DIR/rpi.patch"
+    $SIMULATE_BUILD docker build --rm -t "$IMAGE_NAME:$tag" .
+    $SIMULATE_BUILD docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
+    $SIMULATE_BUILD docker push "$IMAGE_NAME:$tag"
+}
+
+[[ -n "$GIT_DIR" ]] || die "GIT_DIR not set"
+[[ -n "$STATE_DIR" ]] || die "STATE_DIR not set"
+[[ -n "$PATCH_DIR" ]] || die "PATCH_DIR not set"
+[[ -n "$IMAGE_NAME" ]] || die "IMAGE_NAME not set"
+[[ -n "$DOCKER_USERNAME" ]] || die "DOCKER_USERNAME not set"
+[[ -n "$DOCKER_PASSWORD" ]] || die "DOCKER_PASSWORD not set"
+
+[[ -f "$STATE_DIR/tags" ]] || touch "$STATE_DIR/tags"
+[[ -f "$STATE_DIR/dev-commit" ]] || touch "$STATE_DIR/dev-commit"
+
+cd "$GIT_DIR"
+git clean -qf
+git fetch
+
+unset LATEST_TAG
+git tag | sort -t. -k1,1n -k2,2n -k3,3n > "$STATE_DIR/new-tags"
+diff -u "$STATE_DIR/tags" "$STATE_DIR/new-tags" | while read line; do
+    if [[ "${line:0:1}" != '+' || "${line:1:1}" == '+' ]]; then
+        continue
+    fi
+
+    TAG="${line:1}"
+    build "$TAG" "$TAG"
+    LATEST_TAG="$TAG"
+done
+$SIMULATE_BUILD mv "$STATE_DIR/new-tags" "$STATE_DIR/tags"
+
+if [[ -n "$LATEST_TAG" ]]; then
+    $SIMULATE_BUILD docker tag "$IMAGE_NAME:$LATEST_TAG" "$IMAGE_NAME:latest"
+    $SIMULATE_BUILD docker push "$IMAGE_NAME:latest"
+fi
+
+DEV_REV="$( git log --pretty=oneline -1 origin/dev )"
+OLD_DEV_REV="$(< "$STATE_DIR/dev-commit" )"
+if [[ "$DEV_REV" != "$OLD_DEV_REV" ]]; then
+    build origin/dev dev
+    [[ -n "$SIMULATE_BUILD" ]] || echo "$DEV_REV" > "$STATE_DIR/dev-commit"
+fi
+
