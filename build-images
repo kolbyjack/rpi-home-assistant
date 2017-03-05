@@ -24,6 +24,16 @@ function build()
     $SIMULATE_BUILD docker push "$IMAGE_NAME:$tag"
 }
 
+function get_new_tags()
+{
+    git tag | sort -t. -k1,1n -k2,2n -k3,3n > "$STATE_DIR/new-tags"
+    diff -u "$STATE_DIR/tags" "$STATE_DIR/new-tags" | while read line; do
+        if [[ "${line:0:1}" == '+' && "${line:1:1}" != '+' ]]; then
+            echo " ${line:1}"
+        fi
+    done
+}
+
 echo "== Starting at $( date ) ====================="
 
 [[ -n "$GIT_DIR" ]] || die "GIT_DIR not set"
@@ -37,19 +47,13 @@ echo "== Starting at $( date ) ====================="
 [[ -f "$STATE_DIR/dev-commit" ]] || touch "$STATE_DIR/dev-commit"
 
 cd "$GIT_DIR"
-git clean -qf
-git fetch
+$SIMULATE_BUILD git clean -qf
+$SIMULATE_BUILD git fetch
 
 unset LATEST_TAG
-git tag | sort -t. -k1,1n -k2,2n -k3,3n > "$STATE_DIR/new-tags"
-diff -u "$STATE_DIR/tags" "$STATE_DIR/new-tags" | while read line; do
-    if [[ "${line:0:1}" != '+' || "${line:1:1}" == '+' ]]; then
-        continue
-    fi
-
-    TAG="${line:1}"
-    build "$TAG" "$TAG"
-    LATEST_TAG="$TAG"
+for tag in $( get_new_tags ); do
+    build "$tag" "$tag"
+    LATEST_TAG="$tag"
 done
 $SIMULATE_BUILD mv "$STATE_DIR/new-tags" "$STATE_DIR/tags"
 
