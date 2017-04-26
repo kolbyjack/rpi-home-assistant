@@ -16,7 +16,6 @@ function build()
     local branch="$1"
     local tag="$2"
 
-    echo "Building new $tag image"
     $SIMULATE_BUILD git checkout --force "$branch"
     for patch in "$PATCH_DIR"/*.patch; do
         $SIMULATE_BUILD patch -p1 < "$patch"
@@ -24,16 +23,6 @@ function build()
     $SIMULATE_BUILD docker build --rm -t "$IMAGE_NAME:$tag" .
     $SIMULATE_BUILD docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
     $SIMULATE_BUILD docker push "$IMAGE_NAME:$tag"
-}
-
-function get_new_tags()
-{
-    git tag | sort -t. -k1,1n -k2,2n -k3,3n > "$STATE_DIR/new-tags"
-    diff -u "$STATE_DIR/tags" "$STATE_DIR/new-tags" | while read line; do
-        if [[ "${line:0:1}" == '+' && "${line:1:1}" != '+' ]]; then
-            echo " ${line:1}"
-        fi
-    done
 }
 
 echo "== Starting at $( date ) ====================="
@@ -47,20 +36,24 @@ echo "== Starting at $( date ) ====================="
 STATE_DIR="$BASE_DIR/state"
 PATCH_DIR="$BASE_DIR/patches"
 LOG_DIR="$BASE_DIR/logs"
+TAG_DIR="$STATE_DIR/tags"
 
-[[ -f "$STATE_DIR/tags" ]] || touch "$STATE_DIR/tags"
+[[ -d "$TAG_DIR" ]] || mkdir "$TAG_DIR"
 [[ -f "$STATE_DIR/dev-commit" ]] || touch "$STATE_DIR/dev-commit"
 
 cd "$GIT_DIR"
-$SIMULATE_BUILD git clean -qf
-$SIMULATE_BUILD git fetch
+$SIMULATE_BUILD git clean -qf >> "$LOG_DIR/git.log" 2>&1
+$SIMULATE_BUILD git fetch >> "$LOG_DIR/git.log" 2>&1
 
 unset LATEST_TAG
-for tag in $( get_new_tags ); do
-    build "$tag" "$tag" > "$LOG_DIR/$tag.log" 2>&1
-    LATEST_TAG="$tag"
+for tag in $( git tag | sort -t. -k1,1n -k2,2n -k3,3n ); do
+    if [[ ! -f "$TAG_DIR/$tag" ]]; then
+        echo "Building new $tag image"
+        build "$tag" "$tag" > "$LOG_DIR/$tag.log" 2>&1
+        touch "$TAG_DIR/$tag"
+        LATEST_TAG="$tag"
+    fi
 done
-$SIMULATE_BUILD mv "$STATE_DIR/new-tags" "$STATE_DIR/tags"
 
 if [[ -n "$LATEST_TAG" ]]; then
     $SIMULATE_BUILD docker tag "$IMAGE_NAME:$LATEST_TAG" "$IMAGE_NAME:latest"
@@ -70,7 +63,8 @@ fi
 DEV_REV="$( git log --pretty=oneline -1 origin/dev )"
 OLD_DEV_REV="$(< "$STATE_DIR/dev-commit" )"
 if [[ "$DEV_REV" != "$OLD_DEV_REV" ]]; then
-    build origin/dev dev >> "$LOG_DIR/dev.log" 2>&1
+    echo "Building new dev image"
+    build origin/dev dev > "$LOG_DIR/dev-$( date +%Y.%m.%d-%H.%M.%S ).log" 2>&1
     [[ -n "$SIMULATE_BUILD" ]] || echo "$DEV_REV" > "$STATE_DIR/dev-commit"
 fi
 
