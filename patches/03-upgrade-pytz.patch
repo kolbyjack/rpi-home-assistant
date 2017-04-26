@@ -1,0 +1,13 @@
+diff --git a/virtualization/Docker/setup_docker_prereqs b/virtualization/Docker/setup_docker_prereqs
+index f2238e4..35a078e 100755
+--- a/virtualization/Docker/setup_docker_prereqs
++++ b/virtualization/Docker/setup_docker_prereqs
+@@ -38,6 +38,8 @@ PACKAGES_DEV=(
+ apt-get update
+ apt-get install -y --no-install-recommends ${PACKAGES[@]} ${PACKAGES_DEV[@]}
+ 
++pip3 install --no-cache-dir --upgrade "pytz>=2017.02"
++
+ if [ "$INSTALL_TELLSTICK" == "yes" ]; then
+   virtualization/Docker/scripts/tellstick
+ fi

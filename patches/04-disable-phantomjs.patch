@@ -1,0 +1,13 @@
+diff --git a/virtualization/Docker/setup_docker_prereqs b/virtualization/Docker/setup_docker_prereqs
+index 69f76e9..5502619 100755
+--- a/virtualization/Docker/setup_docker_prereqs
++++ b/virtualization/Docker/setup_docker_prereqs
+@@ -9,7 +9,7 @@ INSTALL_OPENALPR="${INSTALL_OPENALPR:-yes}"
+ INSTALL_FFMPEG="${INSTALL_FFMPEG:-yes}"
+ INSTALL_OPENZWAVE="${INSTALL_OPENZWAVE:-yes}"
+ INSTALL_LIBCEC="${INSTALL_LIBCEC:-yes}"
+-INSTALL_PHANTOMJS="${INSTALL_PHANTOMJS:-yes}"
++INSTALL_PHANTOMJS=no
+ INSTALL_COAP_CLIENT="${INSTALL_COAP_CLIENT:-yes}"
+ 
+ # Required debian packages for running hass or components
