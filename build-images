@@ -5,10 +5,27 @@ set -e
 cd "$( dirname "$0" )"
 source config
 
+LOCKFILE='/tmp/build-images.lock'
+
 function die()
 {
     echo "FATAL: $*"
     exit 1
+}
+
+function check_lock()
+{
+    set +e
+    ( set -o noclobber; echo "$$" > "$LOCKFILE" ) 2> /dev/null
+    [[ ! -d "/proc/$(< "$LOCKFILE" )" ]] && rm "$LOCKFILE"
+    ( set -o noclobber; echo "$$" > "$LOCKFILE" ) 2> /dev/null
+    [[ "$(< "$LOCKFILE" )" != "$$" ]] && exit
+    set -e
+}
+
+function remove_lock()
+{
+    rm -f "$LOCKFILE"
 }
 
 function build()
@@ -18,12 +35,15 @@ function build()
 
     $SIMULATE_BUILD git checkout --force "$branch"
     for patch in "$PATCH_DIR"/*.patch; do
-        $SIMULATE_BUILD patch -p1 < "$patch"
+        echo "Applying $patch"
+        $SIMULATE_BUILD patch -i "$patch" -p1
     done
     $SIMULATE_BUILD docker build --rm -t "$IMAGE_NAME:$tag" .
     $SIMULATE_BUILD docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
     $SIMULATE_BUILD docker push "$IMAGE_NAME:$tag"
 }
+
+check_lock
 
 echo "== Starting at $( date ) ====================="
 
@@ -42,8 +62,8 @@ TAG_DIR="$STATE_DIR/tags"
 [[ -f "$STATE_DIR/dev-commit" ]] || touch "$STATE_DIR/dev-commit"
 
 cd "$GIT_DIR"
-$SIMULATE_BUILD git clean -qf >> "$LOG_DIR/git.log" 2>&1
-$SIMULATE_BUILD git fetch >> "$LOG_DIR/git.log" 2>&1
+$SIMULATE_BUILD git clean -qf > /dev/null 2>&1
+$SIMULATE_BUILD git fetch > /dev/null 2>&1
 
 unset LATEST_TAG
 for tag in $( git tag | sort -t. -k1,1n -k2,2n -k3,3n ); do
@@ -64,10 +84,12 @@ DEV_REV="$( git log --pretty=oneline -1 origin/dev )"
 OLD_DEV_REV="$(< "$STATE_DIR/dev-commit" )"
 if [[ "$DEV_REV" != "$OLD_DEV_REV" ]]; then
     echo "Building new dev image"
-    build origin/dev dev > "$LOG_DIR/dev-$( date +%Y.%m.%d-%H.%M.%S ).log" 2>&1
+    build origin/dev dev > "$LOG_DIR/dev-$( date +%Y.%m.%d ).log" 2>&1
     [[ -n "$SIMULATE_BUILD" ]] || echo "$DEV_REV" > "$STATE_DIR/dev-commit"
 fi
 
 echo "== Finished at $( date ) ====================="
 echo
+
+remove_lock
 
