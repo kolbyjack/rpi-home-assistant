@@ -1,10 +1,13 @@
 diff --git a/Dockerfile b/Dockerfile
-index 8c7ab8a..c652590 100644
+index a877f15..30ac931 100644
 --- a/Dockerfile
 +++ b/Dockerfile
-@@ -1,4 +1,4 @@
+@@ -2,7 +2,7 @@
+ # When updating this file, please also update virtualization/Docker/Dockerfile.dev
+ # This way, the development image and the production image are kept in sync.
+ 
 -FROM python:3.6
-+FROM armhf/python:3.6
++FROM armhf/python:3.5
  MAINTAINER Paulus Schoutsen <Paulus@PaulusSchoutsen.nl>
  
  # Uncomment any of the following lines to disable the installation.
