@@ -88,6 +88,10 @@ if [[ "$DEV_REV" != "$OLD_DEV_REV" ]]; then
     [[ -n "$SIMULATE_BUILD" ]] || echo "$DEV_REV" > "$STATE_DIR/dev-commit"
 fi
 
+echo "Purging images"
+#docker rm $(docker ps -a -q)
+docker rmi $(docker images -q)
+
 echo "== Finished at $( date ) ====================="
 echo
 
